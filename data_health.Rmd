@@ -1,0 +1,30 @@
+---
+title: "Datathon UseR2019"
+author: Diego Kozlowski
+output: html_notebook
+---
+
+
+the data comes from [World Bank](https://datacatalog.worldbank.org/dataset/health-nutrition-and-population-statistics)
+
+```{r setup}
+library(tidyverse)
+```
+
+```{r}
+# Country_Series <- read_csv("data/HNP_StatsCountry-Series.csv")
+# Country <- read_csv("data/HNP_StatsCountry.csv")
+data <- read_csv("data/HNP_StatsData.csv")
+# FootNote <- read_csv("data/HNP_StatsFootNote.csv")
+# Series_time <- read_csv("data/HNP_StatsSeries-Time.csv")
+# Series <- read_csv("data/HNP_StatsSeries.csv")
+```
+I reorgnize the dataset, gathering the years, and nesting the different indicators
+
+```{r}
+data <- data %>% 
+  gather(year, value, 5:ncol(.)) %>% 
+  group_by(`Indicator Name`, `Indicator Code`) %>% 
+  nest()
+```
+
