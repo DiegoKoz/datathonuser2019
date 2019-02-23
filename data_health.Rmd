@@ -92,7 +92,7 @@ dist_plot <- function(df, indicator_code, top_countries = F, bottom_countries = 
     bottom <- filt_data %>%
     group_by(country) %>%
     summarise(value = min(value)) %>%
-    top_n(3, rev(value)) %$% country
+    top_n(-3, value) %$% country
   
     ifelse(length(bottom)<=4,selected_countries <- c(selected_countries,bottom), 
             warning('too many countries in the left tale'))
