@@ -71,7 +71,6 @@ dist_plot <- function(filt_data, top_countries = F, bottom_countries = F, specif
   
 }
 
-
 grow_treemap <- function(filt_data, yr=2010, group='inc_group') {
   
   filt_data %>% 
@@ -101,7 +100,7 @@ correlation_plot <- function(filt_data,input_x,input_y, yr=2016, group ='inc_gro
     filter(year==yr) %>% 
     select(-indicator) %>% 
     spread(.,key = indicator_cod,value) %>%
-    rename(x=name_to_cod(input$input_x),y=name_to_cod(input$input_y)) %>% 
+    select(country,inc_group,region, x=name_to_cod(input_x),y=name_to_cod(input_y)) %>% 
     ggplot(., aes_string(x='x',
                          y='y',
                          label = 'country',
@@ -118,15 +117,26 @@ correlation_plot <- function(filt_data,input_x,input_y, yr=2016, group ='inc_gro
   ggplotly(plot)
 }
 
+series_code="SE.PRM.NENR"
+
+series_info <- function(series_code){
+  Series %>% filter(`Series Code`==series_code) %>%
+  gather() %>% na.omit()
+}
+
+
+  
 ##### UI ##### 
 
 ui <- fluidPage(theme = shinytheme("paper"),
                 
+                tags$head(
+                  tags$style(type='text/css', 
+                             ".nav-tabs {font-size: 30px} ")),
                 tabsetPanel(type = "tabs",
+                            ## Density ##
                             tabPanel("density",
-                                     
                                      titlePanel("Countries distribution over features"),
-                                     
                                      sidebarLayout(
                                        ## distribution ##
                                        sidebarPanel(selectizeInput('topic_dist',
@@ -143,14 +153,16 @@ ui <- fluidPage(theme = shinytheme("paper"),
                                                     "Autor: ",a("Diego Kozlowski", href="https://sites.google.com/view/diego-kozlowski")
                                        ),
                                        mainPanel(
-                                         plotOutput("dist_plot", width = "800px", height = "600px")%>% 
+                                         plotOutput("dist_plot", width = "100%", height = "700px")%>% 
                                            withSpinner(color="#0dc5c1"),
-                                         dataTableOutput('filt_data_dist')
+                                         h3('Raw data'),
+                                         dataTableOutput('filt_data_dist'),
+                                         h3('Metadata of the serie'),
+                                         dataTableOutput('metadata_dist')
                                        ))),
                             ## treemap ##
                             tabPanel("treemap",
                                      titlePanel("Treemaps of features over time"),
-                                     
                                      sidebarLayout(
                                        sidebarPanel(
                                          selectizeInput('topic_treemap',
@@ -170,13 +182,17 @@ ui <- fluidPage(theme = shinytheme("paper"),
                                        ),
                                        mainPanel(
                                          
-                                         plotOutput("treemap", width = "800px", height = "600px")%>% 
+                                         plotOutput("treemap", width = "100%", height = "700px")%>% 
                                            withSpinner(color="#0dc5c1"),
-                                         dataTableOutput('filt_data_treemaps')
+                                         h3('Raw data'),
+                                         dataTableOutput('filt_data_treemaps'),
+                                         h3('Metadata of the serie'),
+                                         dataTableOutput('metadata_treemap')
+                                         
                                        )
                                      )
                             ),
-                            ## scatter ##
+                            ## scatterplot ##
                             tabPanel("scatterplot",
                                      titlePanel("Relation between two features"),
                                      sidebarLayout(
@@ -184,17 +200,17 @@ ui <- fluidPage(theme = shinytheme("paper"),
                                          selectizeInput('topic_scatter_x',
                                                         label='Choose the topic x',
                                                         choices=c('All',unique(Series$Topic)),
-                                                        selected='All'),
+                                                        selected='Social Protection & Labor: Economic activity'),
                                          htmlOutput('input_x'),
                                          selectizeInput('topic_scatter_y',
                                                         label='Choose the topic y',
                                                         choices=c('All',unique(Series$Topic)),
-                                                        selected='All'),
+                                                        selected='Social Protection & Labor: Labor force structure'),
                                          htmlOutput('input_y'),
                                                     selectizeInput("group_scatter",
                                                                    label =  "Choose indicator",
                                                                    choices = c('income groups'='inc_group','region'),
-                                                                   selected = "inc_group"),
+                                                                   selected = "region"),
                                                     checkboxInput('scatter_smooth',label = 'Make lineal model',value = TRUE),
                                                     htmlOutput("yearUI_scatter"),
                                                     downloadButton('download_scatter','Download data'),
@@ -204,9 +220,16 @@ ui <- fluidPage(theme = shinytheme("paper"),
                                        ),
                                        mainPanel(
                                          
-                                         plotlyOutput("scatter", width = "800px", height = "600px")%>% 
+                                         plotlyOutput("scatter", width = "100%", height = "700px")%>% 
                                            withSpinner(color="#0dc5c1"),
-                                         dataTableOutput('filt_data_scatter')
+                                         h3('Raw data'),
+                                         dataTableOutput('filt_data_scatter'),
+                                         h3('Metadata of the series'),
+                                         htmlOutput('xname'),
+                                         dataTableOutput('x_metadata_scatter'),
+                                         hr(),
+                                         htmlOutput('yname'),
+                                         dataTableOutput('y_metadata_scatter')
                                        )
                                      )
                             )
@@ -217,7 +240,7 @@ ui <- fluidPage(theme = shinytheme("paper"),
 server <- function (input, output, session) {
   
   
-  ### distribution tab ###
+  #### distribution tab ####
   
   # side bar
   
@@ -258,7 +281,13 @@ server <- function (input, output, session) {
     )
   )
   
-  ### Treemap tab ###
+  output$metadata_dist <- renderDataTable({
+    datatable(series_info(series_code = name_to_cod(input$feature_dist) ),rownames = F,colnames = '',
+              options = list(ordering=F)) %>% 
+      formatStyle(columns = 'key', fontSize = '125%',fontWeight = 'bold')
+  })
+  
+  #### Treemap tab ####
 
   # sidebar
   
@@ -298,23 +327,30 @@ server <- function (input, output, session) {
     )
   )
   
-  ### scatterplot ###
+  output$metadata_treemap <- renderDataTable({
+    datatable(series_info(series_code = name_to_cod(input$feature_treemap) ),rownames = F,colnames = '',
+              options = list(ordering=F)) %>% 
+      formatStyle(columns = 'key', fontSize = '125%',fontWeight = 'bold')
+  })
+
+  #### scatterplot ####
   
   # sidebar
   
   output$input_x <-  renderUI({
-    selectizeInput("input_x",
+    selectizeInput("xvar_scatter",
                    label =  "Choose indicator for x axis",
                    choices = filter_topics(input$topic_scatter_x),
-                   selected = "School enrollment, primary (% net)")})
+                   selected ='Share of women in wage employment in the nonagricultural sector (% of total nonagricultural employment)')})
   
   output$input_y <-  renderUI({
-    selectizeInput("input_y",
+    selectizeInput("yvar_scatter",
                    label =  "Choose indicator for y axis",
                    choices = filter_topics(input$topic_scatter_y),
-                   selected = "Literacy rate, youth (ages 15-24), gender parity index (GPI)")})
+                   selected = 'Labor force, female (% of total labor force)')})
   
-  filt_data_scatter <- reactive({data[data$indicator_cod%in%c(name_to_cod(input$input_x),name_to_cod(input$input_y)),] %>% 
+  filt_data_scatter <- reactive({data[data$indicator_cod%in%c(name_to_cod(input$xvar_scatter),
+                                                              name_to_cod(input$yvar_scatter)),] %>% 
       unnest()})
   
   
@@ -338,7 +374,7 @@ server <- function (input, output, session) {
                 label = "Choose year", 
                 min = min_year(),
                 max = max_year(),
-                value= min_year(),
+                value= 2010,
                 animate= animationOptions(interval = 2000))
   })
 
@@ -351,8 +387,12 @@ server <- function (input, output, session) {
   # mainpanel
 
   output$scatter =  renderPlotly({
-    correlation_plot(filt_data_scatter(),input_x = input$input_x, input_y = input$input_y,
-                      group = input$group_scatter,yr = input$year_scatter,linear_relation = input$scatter_smooth)
+    correlation_plot(filt_data = filt_data_scatter(),
+                     input_x = input$xvar_scatter,
+                     input_y = input$yvar_scatter,
+                     group = input$group_scatter,
+                     yr = input$year_scatter,
+                     linear_relation = input$scatter_smooth)
   })
   
   output$filt_data_scatter <- renderDataTable(
@@ -362,6 +402,26 @@ server <- function (input, output, session) {
       options = list(scrollX = TRUE)
     )
   )
+  
+  output$xname= renderUI({
+    h4(input$xvar_scatter)
+  })
+  
+  output$x_metadata_scatter <- renderDataTable({
+    datatable(series_info(series_code = name_to_cod(input$xvar_scatter) ),rownames = F,colnames = '',
+              options = list(ordering=F)) %>% 
+      formatStyle(columns = 'key', fontSize = '125%',fontWeight = 'bold')
+  })
+  
+  output$yname= renderUI({
+    h4(input$yvar_scatter)
+  })
+  
+  output$y_metadata_scatter <- renderDataTable({
+    datatable(series_info(series_code = name_to_cod(input$yvar_scatter) ),rownames = F,colnames = '',
+              options = list(ordering=F)) %>% 
+      formatStyle(columns = 'key', fontSize = '125%',fontWeight = 'bold')
+  })
   
   
 }
