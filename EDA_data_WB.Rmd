@@ -1,0 +1,279 @@
+---
+title: "Datathon UseR2019"
+author: Diego Kozlowski
+output: html_notebook
+---
+
+
+## Introduction
+
+The goal of this project is to facilitate the data analysis of people who might be interested in the series that come from [_World Bank health and population statistics_ dataset](https://datacatalog.worldbank.org/dataset/health-nutrition-and-population-statistics)
+
+When I first inspect this database, I found a rich amount of information that covers many topics. There are 405 series for many countries/years/topics, so its too much to see in a glance. The abundance of information give me the sense that many people might find difficulties for exploring this data. For this, I decided to build a tool for the Exploratory data analysis that could help in the search of the different series:
+
+- I build a shiny app that I deployed at [https://diegokoz.shinyapps.io/eda_data_wb/](https://diegokoz.shinyapps.io/eda_data_wb/) so that it can be accessible to anyone. 
+- I work on a github repository ([/DiegoKoz/datathonuser2019](https://github.com/DiegoKoz/datathonuser2019)) so anyone can acces the code and re-use it.
+
+In this Rnotebook I will comment on the different plots and resources I add to this shiny app
+
+```{r setup}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(tidyverse)
+library(ggthemes)
+library(ggridges)
+library(ggrepel)
+library(glue)
+library(magrittr)
+library(treemapify)
+library(assertthat)
+library(plotly)
+```
+
+```{r message=FALSE, warning=FALSE}
+Country <- read_csv("data/HNP_StatsCountry.csv")
+data <- read_csv("data/HNP_StatsData.csv")
+Series <- read_csv("data/HNP_StatsSeries.csv")
+```
+
+# Data Wrangling
+
+First, in order to accelerate the functioning of the shiny app, I clean the dataset:
+
+- I reorganize the dataset, gathering the years, and nesting the different indicators.
+- Also, as my data analysis will be country-centered, the observations regarding country aggregates might obscure the analysis, and therefore I will remove them. For this, I will use the information in the `Country` dataset
+- After an eye inspection, I realize that those observations where the _2-alpha code_ contains a number, are referring to supranational aggregates. The same stands for the _2-alpha code_ that starts with X and Z. But given that some countries also starts with Z,like South Africa _ZA_, Zambia _ZM_ and Zimbabwe _ZW_, and they are all republics, I will re-filter the selection to skip them. Finally the 'OE' code stands for the OECD aggregate
+
+```{r}
+Country %>% 
+  filter(str_detect(`2-alpha code`,'[0-9]|X.|Z.|OE'),!str_detect(`Long Name`,'Republic')) %>% 
+  select(`Long Name`,`2-alpha code`)
+```
+
+
+
+I will use this for filtering the data. Also, I will rename the data to follow the [tidyverse style guide](https://style.tidyveassert_thatrse.org/), and add the information of _Region_ and _Income Group_
+
+
+```{r eval=FALSE, include=TRUE}
+
+regional_aggregates <- Country %>% 
+  filter(str_detect(`2-alpha code`,'[0-9]|X.|Z.|OE|EU'),!str_detect(`Long Name`,'Republic')) %$%
+  `Country Code`
+
+data <- data %>% 
+  gather(year, value, 5:ncol(.)) %>% 
+  left_join(.,Country %>% select("Country Code","Region","Income Group")) %>% 
+  select(indicator= `Indicator Name`,indicator_cod =`Indicator Code`, country=`Country Name`,cod=`Country Code`,year,value, region=Region, inc_group=`Income Group`) %>%
+  filter(!is.na(value), !(cod %in% regional_aggregates)) %>% 
+  mutate(year=as.numeric(paste(year))) %>% 
+  group_by(indicator, indicator_cod) %>% 
+  nest()
+
+saveRDS(data,'data/data.rds')
+
+
+```
+
+
+```{r include=FALSE}
+data <- read_rds('data/data.rds')
+```
+
+
+## Plots
+
+I think that a visual inspection of data is key for knowing which indicator might fit for the goals of a certain project. My idea is to give to the users the possibility of inspect a certain indicator with three different plots that show different properties of data, and then let them download a file containing their chosen indicator. In this Rnotebook I will show the three different plots I choose with an example of each.
+
+I choose to use the [ggplot2](https://ggplot2.tidyverse.org/) library as it give me the flexibility to produce really different plots with a same grammar.
+
+### Distribution
+assert_that
+First, as the data has the structure of a numeric value for many countries & years, I think that showing the distribution of this values for each particular year can give first image of what the data is about. For this, I will use the complements for ggplot [ggridges](https://github.com/clauswilke/ggridges) and [ggrepel](https://github.com/slowkow/ggrepel).
+
+The idea is to show a kernel for each year, and highlight some countries. This can give use an idea of the indicator's mean and dispersion, along with the position of some specific countries.
+
+As an example, I choose the indicator of _Prevalence of HIV, total (% of population ages 15-49)_ and also highlighted the top three countries of the distribution: 
+
+```{r, fig.height=10, fig.width=7}
+name_to_cod <- function(name){
+  Series %>% filter(`Indicator Name`==name) %$% `Series Code`
+}
+
+dist_plot <- function(filt_data, top_countries = F, bottom_countries = F, specific_countries = NA) {
+  
+  selected_countries <- specific_countries
+  
+  if (top_countries) {
+    
+    top <- filt_data %>%
+      group_by(country) %>%
+      summarise(value = max(value)) %>%
+      top_n(3, value) %$% country
+    
+    ifelse(length(top)<=4,selected_countries <- c(selected_countries,top), 
+           warning('too many countries in the right tale'))
+  }
+  if (bottom_countries) {
+    
+    bottom <- filt_data %>%
+      group_by(country) %>%
+      summarise(value = min(value)) %>%
+      top_n(-3, value) %$% country
+    
+    ifelse(length(bottom)<=4,selected_countries <- c(selected_countries,bottom), 
+           warning('too many countries in the left tale'))
+  }
+  
+  filt_data %>% 
+    ggplot(. , aes(value, factor(year)))+
+    geom_density_ridges(alpha = 0.2)+
+    geom_text_repel(data = . %>%
+                      filter(country %in% selected_countries),
+                    aes(label = cod, color = country),
+                    nudge_y = 0.5, fontface = "bold")+
+    theme_tufte()+
+    theme(legend.position = "bottom")+
+    scale_color_gdocs() +
+    scale_fill_gdocs() +
+    labs(y = "Year",
+         title= glue('{unique(filt_data$indicator)}'))
+  
+}
+
+feature_dist <- "Prevalence of HIV, total (% of population ages 15-49)"
+filt_data_dist <- data[data$indicator_cod==name_to_cod(feature_dist),] %>% unnest()
+
+    dist_plot(filt_data_dist,
+              top_countries = TRUE, 
+              bottom_countries = FALSE, 
+              specific_countries = NA)
+
+```
+
+We can see that the distribution doesn't change too mach, although its a little bit more platykurtic for the last years. Nonetheless, there is a big change in those countries that are at the right tale of the distribution. Botswana and Eswatini had a dramatic increase in the percentage of people infected by HIV since the beginning of the series. Zimbabwe, on the other hand, although having a significant amount of people infected, has decreased over the years.
+
+For this particular case, highlighting the top three countries gave relevant information. But this doesn't have to be true for all the indicators. In order to make the plots more configurable for the users, I add the following options to the shiny:
+
+- Highlight top countries
+- Highlight least countries
+- Choose specific countries to highlight.
+
+Also, I use the information from the table 'HNP_StatsSeries' to make a two step selection of the indicators, first choosing the general topic.
+
+
+### Treemaps
+
+In order to compare between countries, regions and income groups, in a hierarchical way, I decided to add _treemaps_. This plot type reflect some data attributes that are hidden in the kernel plots, and viceversa, therefore they are a good complement. I used the library [treemapify](https://github.com/wilkox/treemapify) which can be used as an extension of ggplot.  
+
+In order to get the _region_ and _income group_ attribute, I used the information in 'HNP_StatsCountry'.
+
+
+```{r, fig.height=7, fig.width=7}
+grow_treemap <- function(filt_data, yr=2010, group='inc_group') {
+  
+  filt_data %>% 
+    filter(year==yr) %>% 
+    ggplot(., aes_string(area = 'value',label = 'cod',subgroup = group, fill= group)) + 
+    geom_treemap(fixed = TRUE)+
+    geom_treemap_subgroup_border(color='grey', fixed = T)+
+    geom_treemap_text(colour = "black", place = "left",
+                      grow = F, fixed =  TRUE)+
+    geom_treemap_subgroup_text(aes_string(label=group),colour = "white",alpha=0.6, place = "top",
+                               grow = F, fixed =  TRUE, reflow=T)+
+    labs(title= glue("Treemap of {unique(filt_data$indicator)}, year {yr}"))+
+    theme_tufte()+
+    theme(legend.position = 'none',
+          strip.text = element_text(family="Times", face="bold", size=20))
+}
+
+feature_treemap <- 'Prevalence of HIV, total (% of population ages 15-49)'
+
+filt_data_treemaps <- data[data$indicator_cod==name_to_cod(feature_treemap),] %>% unnest()
+
+grow_treemap(filt_data_treemaps,
+             group = 'region',
+             yr = 1990)
+
+```
+
+
+Here we can see different attributes of the same indicator. We cannot see the evolution over time, but we gain information about the distribution across some hierarchical information. In this case, the Region. We can see that the Sub-Saharan Africa is the region with most difficulties regarding HIV, followed by Latin America & Caribbean. We can also see with more detail those countries with biggest problems.
+
+- As this plot doesn't reflect every years information, I add a `sliderInput` for years, so the user can easily see the evolution. I didn't add the option `animate` for the slider, because it takes too much time to generate each plot. 
+- There is also an option for choosing the hierarchical grouping variables: _region_ and _income groups_
+
+### Scatterplots
+
+Finally, its important to explore the data in a multivariate way. In order to see the relation between two different indicators, I add scatter plots. 
+
+Here, I also added the option of the two hierarchical variables from the dataset (region and income group), and add the posibility of doing a lineal smoothing (lineal regression) by group, in order to modelate the relation between the variables. 
+
+On top of ggplot, I used [ggplotly](https://plot.ly/ggplot2/) as it will allow the users to inspect the detailed information from each dot.
+
+As an example I decided to show the relation between the _Immunization, Pol3 (% of one-year-old children)_ and _Mortality rate, under-5 (per 1,000 live births)_:
+
+```{r, fig.height=7, fig.width=10}
+correlation_plot <- function(filt_data,input_x,input_y, yr=2016, group ='inc_group',linear_relation=T){
+  
+  check_x <- filt_data %>% filter(indicator_cod==name_to_cod(input_x),year==yr)
+  check_y <- filt_data %>% filter(indicator_cod==name_to_cod(input_y),year==yr)
+  
+  assert_that(not_empty(check_x), msg = glue('There is no available data for {input_x} for the year {yr}'))
+  assert_that(not_empty(check_y), msg = glue('There is no available data for {input_y} for the year {yr}'))
+  
+  plot <- filt_data %>% 
+    filter(year==yr) %>% 
+    select(-indicator) %>% 
+    spread(.,key = indicator_cod,value) %>%
+    select(country,inc_group,region, x=name_to_cod(input_x),y=name_to_cod(input_y)) %>% 
+    ggplot(., aes_string(x='x',
+                         y='y',
+                         label = 'country',
+                         color=group))+
+    geom_point()+
+    theme_tufte()+
+    labs(x=input_x,y=input_y,title = 'Scatterplot')
+  
+  if (linear_relation) {
+    plot <- plot+
+      geom_smooth(method = 'lm',se = F)
+  }
+  
+  ggplotly(plot)
+}
+
+xvar_scatter <- 'Immunization, Pol3 (% of one-year-old children)'
+yvar_scatter <- 'Mortality rate, under-5 (per 1,000 live births)'
+filt_data_scatter <- data[data$indicator_cod%in%c(name_to_cod(xvar_scatter),
+                                                              name_to_cod(yvar_scatter)),] %>% 
+      unnest()
+
+correlation_plot(filt_data = filt_data_scatter,
+                 input_x = xvar_scatter,
+                 input_y = yvar_scatter,
+                 group = 'inc_group',
+                 yr = 2010,
+                 linear_relation = TRUE)
+```
+
+
+This plot shows the negative correlation between the vaccination against polio in children between 12-23 months and the Mortality rate in children under 5. This means that in countries with lower vaccination against polio, kids are at higher risk. Also, the segmentation between income groups shows the stratification of countries, both in terms of the access to vaccination (as the dispersion is higher in lower income countries), and in terms of mortality rate, for a given vaccination rate.
+
+For this plot, the options are:
+
+- the grouping variables: _region_ and _income groups_
+- whether or not to show the lineal model.
+
+## Other dashboard features
+
+#### Raw data
+
+Besides the plots, I consider it's usefull for the users to have the raw data at hand, for a quick inspection. For this, I used the library [DT](https://github.com/rstudio/DT) which include funcionalities usefull for the user to explore the data. Each of the tabs have the corresponding table. This is especially usefull for the treemaps, which shows a three-coded label for countries, and with the raw data, users can check which country is which. 
+
+#### Indicators metadata
+
+Also, the _HNP_StatsSeries_ dataset has a lot of important metadata from each indicator, that can help the user to understand the information, and to choose between to similar indicators. For each of the tabs, I added a datatable with the metadata of the series.
+
+#### Download Button
+
+Once the user had explored the information and choose the indicators that will be optimum for their project, they need to get acces to the data, and referring them to the original dataset, which by the way can be too big for some personal computers, seems impractical. So I added a download button for each of the tabs, so users can rapidly get the information they need.

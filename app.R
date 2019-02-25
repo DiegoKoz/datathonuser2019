@@ -66,7 +66,7 @@ dist_plot <- function(filt_data, top_countries = F, bottom_countries = F, specif
     theme(legend.position = "bottom")+
     scale_color_gdocs() +
     scale_fill_gdocs() +
-    labs(y = "Año",
+    labs(y = "Year",
          title= glue('{unique(filt_data$indicator)}'))
   
 }
@@ -116,8 +116,6 @@ correlation_plot <- function(filt_data,input_x,input_y, yr=2016, group ='inc_gro
   
   ggplotly(plot)
 }
-
-series_code="SE.PRM.NENR"
 
 series_info <- function(series_code){
   Series %>% filter(`Series Code`==series_code) %>%
@@ -173,7 +171,7 @@ ui <- fluidPage(theme = shinytheme("paper"),
                                          selectizeInput("group",
                                                         label =  "Choose indicator",
                                                         choices = c('income groups'='inc_group','region'),
-                                                        selected = "inc_group"),
+                                                        selected = "region"),
                                          htmlOutput("yearUI"),
                                          downloadButton('download_treemap','Download data'),
                                          br(),
@@ -200,17 +198,17 @@ ui <- fluidPage(theme = shinytheme("paper"),
                                          selectizeInput('topic_scatter_x',
                                                         label='Choose the topic x',
                                                         choices=c('All',unique(Series$Topic)),
-                                                        selected='Social Protection & Labor: Economic activity'),
+                                                        selected='Health: Disease prevention'),
                                          htmlOutput('input_x'),
                                          selectizeInput('topic_scatter_y',
                                                         label='Choose the topic y',
                                                         choices=c('All',unique(Series$Topic)),
-                                                        selected='Social Protection & Labor: Labor force structure'),
+                                                        selected='Health: Mortality'),
                                          htmlOutput('input_y'),
                                                     selectizeInput("group_scatter",
                                                                    label =  "Choose indicator",
                                                                    choices = c('income groups'='inc_group','region'),
-                                                                   selected = "region"),
+                                                                   selected = "inc_group"),
                                                     checkboxInput('scatter_smooth',label = 'Make lineal model',value = TRUE),
                                                     htmlOutput("yearUI_scatter"),
                                                     downloadButton('download_scatter','Download data'),
@@ -341,13 +339,13 @@ server <- function (input, output, session) {
     selectizeInput("xvar_scatter",
                    label =  "Choose indicator for x axis",
                    choices = filter_topics(input$topic_scatter_x),
-                   selected ='Share of women in wage employment in the nonagricultural sector (% of total nonagricultural employment)')})
+                   selected ='Immunization, Pol3 (% of one-year-old children)')})
   
   output$input_y <-  renderUI({
     selectizeInput("yvar_scatter",
                    label =  "Choose indicator for y axis",
                    choices = filter_topics(input$topic_scatter_y),
-                   selected = 'Labor force, female (% of total labor force)')})
+                   selected = 'Mortality rate, under-5 (per 1,000 live births)')})
   
   filt_data_scatter <- reactive({data[data$indicator_cod%in%c(name_to_cod(input$xvar_scatter),
                                                               name_to_cod(input$yvar_scatter)),] %>% 
