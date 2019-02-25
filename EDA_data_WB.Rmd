@@ -1,9 +1,10 @@
 ---
-title: "Datathon UseR2019"
+title: "Visualizing the health and population data of the World Bank"
 author: Diego Kozlowski
 output: html_notebook
 ---
 
+__abstract__: the World Bank dataset provided for the datathon is a rich source of information for more than twenty different topics and with more than 400 series. This amount of information can make it difficult for users to access to the data, especially for comparing different indicators that are very similar to each other. For this, I decided to build a dashboard that show data in an visual way, that can be useful to the data users for exploring and selecting the data.
 
 ## Introduction
 
@@ -12,7 +13,7 @@ The goal of this project is to facilitate the data analysis of people who might 
 When I first inspect this database, I found a rich amount of information that covers many topics. There are 405 series for many countries/years/topics, so its too much to see in a glance. The abundance of information give me the sense that many people might find difficulties for exploring this data. For this, I decided to build a tool for the Exploratory data analysis that could help in the search of the different series:
 
 - I build a shiny app that I deployed at [https://diegokoz.shinyapps.io/eda_data_wb/](https://diegokoz.shinyapps.io/eda_data_wb/) so that it can be accessible to anyone. 
-- I work on a github repository ([/DiegoKoz/datathonuser2019](https://github.com/DiegoKoz/datathonuser2019)) so anyone can acces the code and re-use it.
+- I work on a github repository ([/DiegoKoz/datathonuser2019](https://github.com/DiegoKoz/datathonuser2019)) so anyone can access the code and re-use it.
 
 In this Rnotebook I will comment on the different plots and resources I add to this shiny app
 
@@ -206,7 +207,7 @@ Here we can see different attributes of the same indicator. We cannot see the ev
 
 Finally, its important to explore the data in a multivariate way. In order to see the relation between two different indicators, I add scatter plots. 
 
-Here, I also added the option of the two hierarchical variables from the dataset (region and income group), and add the posibility of doing a lineal smoothing (lineal regression) by group, in order to modelate the relation between the variables. 
+Here, I also added the option of the two hierarchical variables from the dataset (region and income group), and add the possibility of doing a lineal smoothing (lineal regression) by group, in order to modelate the relation between the variables. 
 
 On top of ggplot, I used [ggplotly](https://plot.ly/ggplot2/) as it will allow the users to inspect the detailed information from each dot.
 
@@ -268,7 +269,7 @@ For this plot, the options are:
 
 #### Raw data
 
-Besides the plots, I consider it's usefull for the users to have the raw data at hand, for a quick inspection. For this, I used the library [DT](https://github.com/rstudio/DT) which include funcionalities usefull for the user to explore the data. Each of the tabs have the corresponding table. This is especially usefull for the treemaps, which shows a three-coded label for countries, and with the raw data, users can check which country is which. 
+Besides the plots, I consider it's useful for the users to have the raw data at hand, for a quick inspection. For this, I used the library [DT](https://github.com/rstudio/DT) which include functionalities useful for the user to explore the data. Each of the tabs have the corresponding table. This is especially useful for the treemaps, which shows a three-coded label for countries, and with the raw data, users can check which country is which. 
 
 #### Indicators metadata
 
@@ -276,4 +277,4 @@ Also, the _HNP_StatsSeries_ dataset has a lot of important metadata from each in
 
 #### Download Button
 
-Once the user had explored the information and choose the indicators that will be optimum for their project, they need to get acces to the data, and referring them to the original dataset, which by the way can be too big for some personal computers, seems impractical. So I added a download button for each of the tabs, so users can rapidly get the information they need.
+Once the user had explored the information and choose the indicators that will be optimum for their project, they need to get access to the data, and referring them to the original dataset, which by the way can be too big for some personal computers, seems impractical. So I added a download button for each of the tabs, so users can rapidly get the information they need.
